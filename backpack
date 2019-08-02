@@ -1,0 +1,378 @@
+#include <iostream>
+#include <vector>
+#include <map>
+#include <algorithm>
+
+using namespace std;
+
+/****************************************************************
+有N 件物品和一个容量为V 的背包。第i 件物品的费用是w[i] ，价值是v[i]，求将哪些物品装入背包可使价值总和最大。
+
+用子问题定义状态：即f[i][j]表示前i件物品恰放入一个容量为j的背包可以获得的最大价值。则其状态转移方程便是：
+f[i][j]=max(f[i−1][j],f[i−1][j−w[i]]+v[i])
+
+****************************************************************/
+int backpackOne(int N, int V, vector<int> w, vector<int> v){
+
+	vector<int> goods_in_backpack;
+
+	int* f = new int[V + 1];
+	int MaxV = 0;
+	memset(f, 0xc0c0c0c0, sizeof(int)*(V + 1)); f[0] = 0; //要求恰好装满背包
+	//memset(f, 0, sizeof(int)*(V + 1));//只希望背包内物品的价值最大
+
+	for (int i = 0; i < N; i++) {
+
+		/*if (MaxV < f[V]){   //用于获取背包内放的物品，但现有BUG
+			MaxV = f[V];
+			goods_in_backpack.clear();
+		}*/
+
+		//for (int j = V; j >= w[i]; j--){//限制每个物品只能放一次
+		for (int j = w[i]; j <= V; j++){//每个物品没有限制放置次数
+
+			/*if (f[j] < f[j - w[i]] + v[i]){//用于获取背包内放的物品，但现有BUG
+				goods_in_backpack.push_back(i);
+				f[j] = f[j - w[i]] + v[i];
+			}*/
+			
+			f[j] = max(f[j], f[j - w[i]] + v[i]);
+			//f[j] = min(f[j], f[j - w[i]] + v[i]);
+		}
+		
+	}
+	MaxV = f[V];
+	//MaxV = -f[V]; //求最小值
+
+	delete f;
+	return MaxV; //若值为负数，或者默认的初始值，则说明不存在（要求背包刚好装满的情况）
+
+}
+
+
+
+
+
+/****************************************************************
+有N 种物品和一个容量为V 的背包。第i 种物品最多有p[i] 件可用，每件费用是w[i] ，价值是v[i] 。
+求解将哪些物品装入背包可使这些物品的费用总和不超过背包容量，且价值总和最大。
+
+
+用子问题定义状态：对于第i 种物品有p[i]+1种策略：取0 件，取1 件…取p[i] 件。
+令f[i][j] 表示前i ii种物品恰放入一个容量为j 的背包的最大权值，则有状态转移方程。则其状态转移方程便是：
+f[i][j]=max(f[i−1][j−k∗w[i]]+k∗v[i])∣0<=k<=p[i]
+
+复杂度是O(V∗Σp[i])
+****************************************************************/
+//p：某类物品数量，w：某类物品花费，v：某类物品价值，V:商品总价值
+//“多重背包”通用模板
+const int MAX_V = 100004;
+//w、p、v：当前所处理的这类物品的费用、个数、价值
+//V：背包体积， MAX_V：背包的体积上限值
+//f[i]：体积为i的背包装前几种物品，能达到的价值上限。
+void pack(int f[], int V, int w, int p, int v)
+{
+	if (p == 0 || w == 0) return;
+	if (p == 1) {               //01背包
+		for (int i = V; i >= w; --i)
+		if (f[i] < f[i - w] + v) f[i] = f[i - w] + v;
+		return;
+	}
+	if (p * w >= V - w + 1) {   //完全背包(n >= V / v)
+		for (int i = w; i <= V; ++i)
+		if (f[i] < f[i - w] + v) f[i] = f[i - w] + v;
+		return;
+	}
+
+	int va[MAX_V], vb[MAX_V];   //va/vb: 主/辅助队列
+	for (int j = 0; j < w; ++j) {     //多重背包
+		int *pb = va, *pe = va - 1;     //pb/pe分别指向队列首/末元素
+		int *qb = vb, *qe = vb - 1;     //qb/qe分别指向辅助队列首/末元素  
+		for (int k = j, i = 0; k <= V; k += w, ++i) {
+			if (pe == pb + p) {       //若队列大小达到指定值，第一个元素X出队。
+				if (*pb == *qb) ++qb;   //若辅助队列第一个元素等于X，该元素也出队。 
+				++pb;
+			}
+			int tt = f[k] - i * v;
+			*++pe = tt;                  //元素X进队
+			//删除辅助队列所有小于X的元素，qb到qe单调递减，也可以用二分法
+			while (qe >= qb && *qe < tt) --qe;
+			*++qe = tt;              //元素X也存放入辅助队列        
+			f[k] = *qb + i * v;      //辅助队列首元素恒为指定队列所有元素的最大值
+		}
+	}
+}
+//N,V,w、v、p：当前物品个数，容器容量，物品花费数组，物品价值数组，物品个数数组
+int MultiplePack1(int N, int V, vector<int> w, vector<int> v, vector<int> p){
+
+	int* f = new int[V + 1];
+	int MaxV = 0;
+	memset(f, -1, sizeof(int)*(V + 1)); f[0] = 0; //要求恰好装满背包
+	//memset(f, 0, sizeof(int)*(V + 1));//只希望背包内物品的价值最大
+
+	for (int i = 0; i < N; i++){
+		pack(f,V,w[i],p[i],v[i]);
+	}
+
+	MaxV = f[V];
+	//MaxV = -f[V]; //求最小值
+
+	delete f;
+	return MaxV; //若值为负数，或者默认的初始值，或者不满足要求值，则说明不存在（要求背包刚好装满的情况）
+}
+
+
+
+
+/****************************************************************
+有N 种物品和一个容量为V 的背包。第i 种物品最多有p[i] （p[i]为 X 时可以无限使用）件可用，每件费用是w[i] ，价值是v[i] 。
+求解将哪些物品装入背包可使这些物品的费用总和不超过背包容量，且价值总和最大。
+
+
+用子问题定义状态：对每种物品先判断其其次数是否无限，是，则讲该次物品以不限制物品数量的方式计算；否，则按照pack（）的方法计算
+****************************************************************/
+//N,V,w、v、p：当前物品个数，容器容量，物品花费数组，物品价值数组，物品个数数组,p[i]若为0，则表示无数量限制，具体看题意。
+int FusionPack(int N, int V, vector<int> w, vector<int> v, vector<int> p){
+
+	int* f = new int[V + 1];
+	int MaxV = 0;
+	memset(f, -1, sizeof(int)*(V + 1)); f[0] = 0; //要求恰好装满背包
+	//memset(f, 0, sizeof(int)*(V + 1));//只希望背包内物品的价值最大
+
+	for (int i = 0; i < N; i++){
+		if (p[i] == 0){//p[i]若为0，则表示无数量限制，具体看题意。
+			for (int j = w[i]; j <= V; j++)
+				f[j] = max(f[j], f[j - w[i]] + v[i]);
+		}
+		else{
+			pack(f, V, w[i], p[i], v[i]);
+		}
+		
+	}
+
+	MaxV = f[V];
+	//MaxV = -f[V]; //求最小值
+
+	delete f;
+	return MaxV; //若值为负数，或者默认的初始值，或者不满足要求值，则说明不存在（要求背包刚好装满的情况）
+}
+
+
+
+
+/****************************************************************
+有 N 种物品和一个容量为 V 和 T 的背包。第i 种物品每件费用是w[i] 和 g[i]，价值是v[i] 。
+求解将哪些物品装入背包可使这些物品的费用总和不超过背包容量，且价值总和最大。
+
+状态转移方程就是：f[i][j][k]=max( f[i−1][j][k], f[i−1][j−w[i]][k−g[i]]+v[i] )
+
+
+有时，“二维费用”的条件是以这样一种隐含的方式给出的：最多只能取M 件物品。
+这事实上相当于每件物品多了一种“件数”的费用，每个物品的件数费用均为1 ，可以付出的最大件数费用为M 。
+
+****************************************************************/
+const int MAX_V_2 = 400;
+const int MAX_T_2 = 400;//该数据根据题意的V和T的范围设定
+//根据题意修改最大界限(函数内申请的变量最大限度是1M或2M的内存空间)。
+//其中如果V和w的值都比较大时，则需要适当的调整，减小数量级，在返回结果时，注意把数量级调整回来！！
+//当题意无法调整数量级的时候，则可以考虑将dp二维数组设置为全局变量（全局变量，全局数组，静态数组（static）最大限度是2G的内存空间）
+int Costknapsack(int N, int V, int T, vector<int> w, vector<int> g, vector<int> v){
+	int dp[MAX_V_2][MAX_T_2];
+	int MaxV = 0;
+	memset(dp, 0, sizeof(int)*MAX_V_2*MAX_T_2);//只希望背包内物品的价值最大
+	//memset(dp, 0xc0c0c0c0, sizeof(int)*MAX_V_2*MAX_T_2); dp[0][0] = 0; //要求恰好装满背包
+
+
+	for (int i = 0;i < N; i++){
+
+		for (int j = w[i]; j <= V; j++){    //没有限制
+			for (int k = g[i]; k <= T; k++){
+				
+		/*for (int j = V; j >= w[i]; j--){   //每件物品只可以选取一次
+			for (int k = T; k >= g[i]; k--){*/
+
+				/*dp[0][k] = 0;
+				dp[j][0] = 0;*///要求恰好装满背包
+
+				dp[j][k] = max(dp[j][k], dp[j - w[i]][k - g[i]] + v[i]);
+
+			}
+		}
+	}
+	MaxV = dp[V][T];
+	return MaxV;
+}
+
+
+
+
+
+/****************************************************************
+有N 件物品和一个容量为V 的背包。第i件物品的费用是w[i] ，价值是v[i]。这些物品被划分为若干组(k组)，每组中的物品互相冲突，最多选一件。
+求解将哪些物品装入背包可使这些物品的费用总和不超过背包容量，且价值总和最大。
+
+
+状态转移方程就是：f[k][j]=max(f[k−1][j],f[k−1][j−c[i]]+w[i]∣物品i属于组k)
+****************************************************************/
+map<int, vector<int>> k; // 用于存放所有组的分组情况
+int Groupingbackpack(int V, vector<int> w, vector<int> v) {
+
+	int* f = new int[V + 1];
+	int MaxV = 0;
+	//memset(f, -1, sizeof(int)*(V + 1)); f[0] = 0; //要求恰好装满背包
+	memset(f, 0, sizeof(int)*(V + 1));//只希望背包内物品的价值最大
+	for (map<int, vector<int>>::iterator k_it = k.begin(); k_it != k.end(); k_it++){
+		for (int j = V; j >= 0; j--){//每件物品只可以选取一次
+		//for (int j = 0; j <= V; j--){//每件物品没有选取限制
+			for (vector<int>::iterator it_i = k_it->second.begin(); it_i < k_it->second.end(); it_i++){
+				if (j - w[*it_i] >= 0){
+					f[j] = max(f[j], f[j - w[*it_i]] + v[*it_i]);
+				}
+			}
+		}
+	}
+	MaxV = f[V];
+	delete f;
+	return MaxV;
+}
+
+
+/****************************************************************
+有N 件物品和一个容量为V 的背包。第i件物品的费用是w[i] ，价值是 v[i]，依赖于物品 d[i](d[i]为0时，没有依赖)。
+i 依赖于j ，表示若选物品i ，则必须选物品j 。
+
+求解将哪些物品装入背包可使这些物品的费用总和不超过背包容量，且价值总和最大。
+****************************************************************/
+const int MAX_V_D = 10000;	//根据题意修改
+int Dependent_backpack(int N, int V, vector<int> w, vector<int> v, vector<int> d){
+	
+	int dp[MAX_V_D];
+	int MaxV = 0;
+	memset(dp, 0, sizeof(int)*MAX_V_D);//只希望背包内物品的价值最大
+	//memset(dp, 0xc0c0c0c0, sizeof(int)*MAX_V_D); dp[0][0] = 0; //要求恰好装满背包
+	for (int i = 1; i <= N; i++){
+		if (d[i-1] == 0){
+			int kdp[MAX_V_D];
+			memcpy(kdp, dp, sizeof(int)*MAX_V_D);
+			for (int i_k = 0; i_k < N;i_k++){
+				if ((d[i_k] - i) == 0){
+					for (int k = V - w[i-1]; k >= w[i_k]; k--){ //每种物品只能选一次
+						kdp[k] = max(kdp[k], kdp[k - w[i_k]] + v[i_k]);
+					}
+				}
+			}
+			//for (int j = w[i-1];j <= V; j++){ //每种物品不限制次数
+			for (int j = V; j >= w[i - 1]; j--){ //每种物品只能选一次
+				dp[j] = max(dp[j],kdp[j-w[i-1]]+v[i-1]);
+			}
+		}
+	}
+
+	MaxV = dp[V];
+	return MaxV;
+
+}
+
+
+
+
+
+//参数为N的指针，V的指针，w数组的指针，v的指针(手动输入N，和V，注意题目的输入顺序！！)
+void getInput(int* mN, int* mV, vector<int>* mw, vector<int>* mv){
+	cin >> *mN >> *mV;
+
+	for (int i = 0; i < *mN; i++){
+		int temp_w,temp_v;
+		cin >> temp_w >> temp_v;
+		mw->push_back(temp_w);
+		mv->push_back(temp_v);
+		//mv->push_back(-temp_v);求最小值的话
+	}
+}
+
+//参数为N的指针，V的指针，w数组的指针，v的指针，p的指针(手动输入N，和V，注意题目的输入顺序！！)
+void getInput(int* mN, int* mV, vector<int>* mw, vector<int>* mv, vector<int>* mp){
+	cin >> *mN >> *mV;
+
+	for (int i = 0; i < *mN; i++){
+		int temp_w, temp_v, temp_p;
+		cin >> temp_w >> temp_v >> temp_p;
+		mw->push_back(temp_w);
+		mv->push_back(temp_v);
+		//mv->push_back(-temp_v);求最小值的话
+		mp->push_back(temp_p);
+	}
+}
+
+
+//参数为N的指针，V的指针，T的指针, w数组的指针，g的指针，v的指针(手动输入N，和V，注意题目的输入顺序！！)
+void getInput(int* mN, int* mV, int* mT, vector<int>* mw, vector<int>* mg, vector<int>* mv){
+	cin >> *mN >> *mV>> *mT;
+
+	for (int i = 0; i < *mN; i++){
+		int temp_w, temp_g, temp_v;
+		cin >> temp_w >> temp_g >> temp_v;
+		mw->push_back(temp_w);
+		mg->push_back(temp_g);
+		//mv->push_back(-temp_v);求最小值的话
+		mv->push_back(temp_v);
+	}
+}
+
+
+//参数为N的指针，V的指针，所有k的map的指针， w数组的指针，v的指针，k的指针(手动输入N，和V，注意题目的输入顺序！！)
+const int MAXK = 10;//最大的组数，根据题目要求给定，如果没有，最好取一个较大的值
+void getGRoupingInput(int* mN, int* mV, vector<int>* mw, vector<int>* mv, vector<int>* mk){
+	cin >> *mN >> *mV ;
+	vector<int> MaxK[10];
+	for (int i = 0; i < *mN; i++){
+		int temp_w, temp_v, temp_k;
+		cin >> temp_w >> temp_v >> temp_k;
+		MaxK[temp_k].push_back(i);
+		k[temp_k] = MaxK[temp_k];
+		mw->push_back(temp_w);
+		mv->push_back(temp_v);
+		//mv->push_back(-temp_v);求最小值的话
+		mk->push_back(temp_k);
+	}
+}
+
+
+//参数为N的指针，V的指针，w数组的指针，v的指针，d的指针(手动输入N，和V，注意题目的输入顺序！！)
+void getDependInput(int* mN, int* mV, vector<int>* mw, vector<int>* mv, vector<int>* md){
+	cin >> *mN >> *mV;
+
+	for (int i = 0; i < *mN; i++){
+		int temp_w, temp_v, temp_d;
+		cin >> temp_w >> temp_v >> temp_d;
+		mw->push_back(temp_w);
+		mv->push_back(temp_v);
+		//mv->push_back(-temp_v);求最小值的话
+		md->push_back(temp_d);
+	}
+}
+
+
+int main(){
+	//test
+	int N, V, T;
+
+	//vector<int>w,v;
+
+	//vector<int>w, v, k;
+
+	vector<int>w, v, d;
+
+
+	//getGRoupingInput(&N, &V, &w, &v, &k);
+	getDependInput(&N, &V, &w, &v, &d);
+
+	//backpackOne(N,V,w,v);
+	//MultiplePack1(N, V, w, v, p);
+	//FusionPack(N, V, w, v, p);
+	//Costknapsack(N, V, T, w, g, v);
+	//Groupingbackpack(V,  w, v);
+	Dependent_backpack(N,V,w,v,d);
+
+	return 0;
+}
